@@ -7,7 +7,7 @@ import os
 import hashlib
 import jwt
 from functools import wraps
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 
 # This Project has Turkish Comments Lines. If you use this project and you dont know turkish, get learn or open translate.
 # If you want divide the projects into parts, you use blueprint package.
@@ -34,13 +34,15 @@ def token_required(func):
         if 'Authorization' in request.headers:
             bearer_token = request.headers['Authorization']
             token = bearer_token[7:len(bearer_token)]
+            print(token)
         if not token:
             return jsonify({'error': 'Token bulunmamaktadır!'}), 401
         try:
             data = jwt.decode(
-                token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                token, app.config['SECRET_KEY'], algorithms="HS256")
         except:
-            return jsonify({'error': 'Geçersiz token'}), 403
+            print("403 bölgesine girdi")
+            return jsonify({'error': 'Geçersiz token'}), 401
         return func(*args, **kwargs)
     return wrapped
 
@@ -54,7 +56,7 @@ def add_note():
     note = Note(title, description, user_id)
     db.session.add(note)
     db.session.commit()
-    return jsonify({"message": "Yeni Not Başarılı Bir Şekilde Eklenmiştir."}), 201
+    return note_schema.jsonify(note), 201
 
 
 @app.route("/note/<int:id>", methods=["DELETE"])
@@ -62,10 +64,12 @@ def add_note():
 def delete_note(id):
     # Alternatif olarak Note.query.filter_by(id = id).first()
     note = Note.query.get(id)
+    if note is None:
+        return jsonify({'error': 'Geçerli not bulunmamaktadır!'}), 404
     db.session.delete(note)
     # Yapılan DB işlemlerini veri tabanına yansıtır. Silme, Ekleme ve güncelleme işlemleri ORM'lerde genellikle önce belleğe alınır.
     db.session.commit()
-    return jsonify({"message": note.title+" Başlıklı Not Başarılı Bir Şekilde Silinmiştir."})
+    return jsonify({"message": note.title+" Başlıklı Not Başarılı Bir Şekilde Silinmiştir."}), 200
 
 
 @app.route("/note/<int:id>", methods=["PUT"])
@@ -116,9 +120,13 @@ def login():
     print(user)
     if user is not None:
         token = jwt.encode({'user_id': user.id,
+                            'user_first_name': user.first_name,
+                            'user_last_name': user.last_name,
+                            'user_email': user.email,
+                            'sub': user.id,
                             'exp':  datetime.utcnow()+timedelta(minutes=10),
                             'iat': datetime.utcnow()}, app.config['SECRET_KEY'], algorithm='HS256')
-        return jsonify({'token': token, 'user_id': user.id, 'user_first_name': user.first_name, 'user_last_name': user.last_name, 'user_email': user.email})
+        return jsonify({'token': token})
     return jsonify(error='Lütfen girdiğiniz bilgileri kontrol ediniz!'), 400
 
 
